@@ -472,6 +472,11 @@ class RecipeScraperOpenAITranscription(ABCScraperStrategy):
         if not self.url:
             return False
 
+        # yt-dlp cannot download from Instagram without authentication,
+        # so don't bother trying; the OpenAI scraper handles it via meta tags
+        if is_instagram_url(self.url):
+            return False
+
         settings = self.repos.group_ai_provider_settings.get_one(self.repos.group_id)
         if not (settings and settings.audio_provider_enabled):
             return False
