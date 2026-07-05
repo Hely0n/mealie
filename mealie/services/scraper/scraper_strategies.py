@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, TypedDict
+from urllib.parse import urlparse
 
 import bs4
 import extruct
@@ -43,6 +44,16 @@ BROWSER_IMPERSONATIONS = [
 ]
 
 logger = get_logger()
+
+INSTAGRAM_DOMAINS = ("instagram.com", "instagr.am")
+
+
+def is_instagram_url(url: str | None) -> bool:
+    if not url:
+        return False
+
+    hostname = urlparse(url).hostname or ""
+    return any(hostname == domain or hostname.endswith(f".{domain}") for domain in INSTAGRAM_DOMAINS)
 
 
 @functools.cache
@@ -394,6 +405,12 @@ class RecipeScraperOpenAI(RecipeScraperPackage):
         soup = bs4.BeautifulSoup(html, "lxml")
 
         text = soup.get_text(separator="\n", strip=True)
+        # On Instagram the recipe only exists in the post caption, which is
+        # exposed via the og:description meta tag, not in the page text
+        if is_instagram_url(self.url):
+            og_description = soup.find("meta", property="og:description")
+            if og_description and og_description.get("content"):
+                text = f"{og_description['content']}\n{text}"
         text += self.extract_json_ld_data_from_html(soup)
         if not text:
             raise Exception("No text or ld+json data found in HTML")
@@ -428,7 +445,15 @@ class RecipeScraperOpenAI(RecipeScraperPackage):
         if on_progress:
             await on_progress(self.translator.t("recipe.create-progress.creating-recipe-with-ai"))
 
-        return await super().parse()
+        result = await super().parse()
+
+        # On Instagram the only text source is the post caption, which OpenAI copies
+        # into the description even though its content already ends up in the
+        # ingredient and instruction fields, so drop it.
+        if result and result[0] and is_instagram_url(self.url):
+            result[0].description = ""
+
+        return result
 
 
 class TranscribedAudio(TypedDict):
