@@ -507,7 +507,9 @@ class RecipeScraperOpenAITranscription(ABCScraperStrategy):
             "quiet": True,
             "writesubtitles": True,
             "writeautomaticsub": True,
-            "subtitleslangs": self.SUBTITLE_LANGS,
+            # ".*-orig" also grabs the original-language auto captions,
+            # even for languages not in SUBTITLE_LANGS
+            "subtitleslangs": [*self.SUBTITLE_LANGS, ".*-orig"],
             "skip_download": False,
             "ignoreerrors": True,
             "postprocessors": [
@@ -529,8 +531,14 @@ class RecipeScraperOpenAITranscription(ABCScraperStrategy):
                         "Failed to extract video information. The video may be unavailable or the URL is invalid."
                     )
 
+                # Prefer the video's original language, otherwise an
+                # auto-translated subtitle track wins over the original
+                # (e.g. "en" before "de" for a German video)
+                video_lang = (info.get("language") or "").split("-")[0]
+                preferred_langs = [f"{video_lang}-orig", video_lang] if video_lang else []
+
                 sub_path = None
-                for lang in self.SUBTITLE_LANGS:
+                for lang in [*preferred_langs, *self.SUBTITLE_LANGS]:
                     potential_path = output_template.with_suffix(f".{lang}.vtt")
                     if potential_path.exists():
                         sub_path = potential_path
