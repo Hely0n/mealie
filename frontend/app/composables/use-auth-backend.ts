@@ -3,6 +3,7 @@ import type { UserOut } from "~/lib/api/types/user";
 import { clearAllStores } from "~/composables/store";
 import { clearComposableCaches } from "~/composables/use-clear-composable-caches";
 import { getTokenCookieOptions } from "~/composables/use-token-cookie";
+import { persistToken } from "~/composables/use-token-storage";
 
 interface AuthData {
   value: UserOut | null;
@@ -41,6 +42,9 @@ export const useAuthBackend = function (): AuthState {
 
   function setToken(token: string | null) {
     tokenCookie.value = token;
+    // localStorage backup: Safari (PWA) evicts script-set cookies long before
+    // the token itself expires
+    persistToken(tokenName, token);
   }
 
   function handleAuthError(error: any, redirect = false) {

@@ -1,6 +1,7 @@
 import axios from "axios";
 import { alert } from "~/composables/use-toast";
 import { getTokenCookieOptions } from "~/composables/use-token-cookie";
+import { clearPersistedToken } from "~/composables/use-token-storage";
 
 declare module "axios" {
   interface AxiosRequestConfig {
@@ -46,6 +47,9 @@ export default defineNuxtPlugin(() => {
         const tokenCookie = useCookie(tokenName, getTokenCookieOptions());
         if (tokenCookie.value) {
           tokenCookie.value = null;
+          // also drop the localStorage backup, otherwise the rejected token
+          // would be restored on the next app start
+          clearPersistedToken(tokenName);
 
           // Disable beforeunload warnings to prevent "Are you sure you want to leave?" popups
           window.onbeforeunload = null;
